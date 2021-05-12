@@ -72,7 +72,7 @@ public class MatrixMultiplication {
 
             Configuration conf = context.getConfiguration();
             int col_M = Integer.parseInt(conf.get("columns_M"));
-            float sum = (float) 0.0;
+            float sum = 0.0f;
             float m, n;
 
             for (int j=0; j<col_M; j++){
@@ -83,7 +83,7 @@ public class MatrixMultiplication {
                 }
             }
 
-            if (sum != 0.0){
+            if (sum != 0.0f){
                 context.write(null, new Text(key.toString() + ","+ Float.toString(sum)));
             }
 
@@ -95,13 +95,14 @@ public class MatrixMultiplication {
         Configuration conf = new Configuration();
 
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-        if (otherArgs.length != 2){
+        if (otherArgs.length != 3){
             System.err.println("Error");
             System.exit(1);
         }
 
-        System.out.println("args[0]: <input>"+otherArgs[0]);
-        System.out.println("args[1]: <output>"+otherArgs[1]);
+        System.out.println("args[0]: <input0>"+otherArgs[0]);
+        System.out.println("args[1]: <input1>"+otherArgs[1]);
+        System.out.println("args[2]: <output>"+otherArgs[2]);
 
         Job job = Job.getInstance(conf, "MatrixMultiplication");
         job.getConfiguration().set("columns_N", "3");
@@ -119,7 +120,8 @@ public class MatrixMultiplication {
         job.setOutputValueClass(Text.class);
 
         FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-        FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
+        FileInputFormat.addInputPath(job, new Path(otherArgs[1]));
+        FileOutputFormat.setOutputPath(job, new Path(otherArgs[2]));
 
         job.setInputFormatClass(TextInputFormat.class);
         job.setOutputValueClass(TextOutputFormat.class);
