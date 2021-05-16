@@ -13,24 +13,29 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class MatrixMultiplication {
+public class MatrixMultiplicationNew {
 
-    public static class MatrixMapper extends Mapper<LongWritable, Text, Text, Text>{
+    public static class MatrixMapper extends Mapper<LongWritable, Text, Text, Text> {
+
+        private int col_N;
+        private int row_M;
 
         private final Text outputKey = new Text();
         private final Text outputValue = new Text();
 
+        public void setup(Context context){
+            //getInt(String name, int defaultValue) returns value as an int, or defaultValue.
+            this.col_N = context.getConfiguration().getInt("columns_N", 2);
+            this.row_M = context.getConfiguration().getInt("rows_M", 2);
+        }
+
         @Override
         public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-
-            Configuration conf = context.getConfiguration();
-
-            final int col_N = Integer.parseInt(conf.get("columns_N"));
-            final int row_M = Integer.parseInt(conf.get("rows_M"));
 
             // (M, i, j, Mij)
             String[] values = value.toString().split(",");
@@ -40,7 +45,7 @@ public class MatrixMultiplication {
                     outputValue.set(values[0]+","+values[2]+","+values[3]);
                     context.write(outputKey, outputValue);
                 }
-            } else
+            } else // (N, j, k, Mjk)
                 for (int j=0; j<row_M; j++){
                     outputKey.set(j + "," + values[2]);
                     outputValue.set(values[0]+","+values[1]+","+values[3]);
@@ -52,18 +57,17 @@ public class MatrixMultiplication {
     public static class MatrixReducer extends Reducer<Text, Text, NullWritable, Text> {
 
         @Override
-        public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException{
-
-            Map<Integer, Float> M = new HashMap<>();
-            Map<Integer, Float> N = new HashMap<>();
+        public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            Map<Integer, Float> mapM = new HashMap<>();
+            Map<Integer, Float> mapN = new HashMap<>();
 
             String[] riga;
             for (Text value : values){
                 riga = value.toString().split(",");
                 if (riga[0].equals("M")){
-                    M.put(Integer.parseInt(riga[1]), Float.parseFloat(riga[2]));
+                    mapM.put(Integer.parseInt(riga[1]), Float.parseFloat(riga[2]));
                 } else {
-                    N.put(Integer.parseInt(riga[1]), Float.parseFloat(riga[2]));
+                    mapN.put(Integer.parseInt(riga[1]), Float.parseFloat(riga[2]));
                 }
             }
 
@@ -74,10 +78,11 @@ public class MatrixMultiplication {
             float m_ij;
             float n_jk;
             for (int j = 0; j < col_M; j++) {
-                m_ij = M.containsKey(j) ? M.get(j) : 0.0f;
-                n_jk = N.containsKey(j) ? N.get(j) : 0.0f;
+                m_ij = mapM.containsKey(j) ? mapM.get(j) : 0.0f;
+                n_jk = mapN.containsKey(j) ? mapN.get(j) : 0.0f;
                 result += m_ij * n_jk;
             }
+
             if (result != 0.0f)
                 context.write(null, new Text(key.toString() + "," + result));
         }
@@ -92,8 +97,8 @@ public class MatrixMultiplication {
             System.err.println("Error");
             System.exit(1);
         }
-        System.out.println("args[0]: <input0>"+otherArgs[0]);
-        System.out.println("args[1]: <output>"+otherArgs[1]);
+        System.out.println("args[0]: <input>= "+otherArgs[0]);
+        System.out.println("args[1]: <output>= "+otherArgs[1]);
 
         Job job = Job.getInstance(conf, "MatrixMultiplication");
         job.getConfiguration().set("columns_N", "3");
@@ -101,7 +106,7 @@ public class MatrixMultiplication {
         job.getConfiguration().set("columns_M", "3");
         job.getConfiguration().set("rows_N", "3");
 
-        job.setJarByClass(MatrixMultiplication.class);
+        job.setJarByClass(MatrixMultiplicationNew.class);
         job.setMapperClass(MatrixMapper.class);
         job.setReducerClass(MatrixReducer.class);
 
@@ -114,7 +119,7 @@ public class MatrixMultiplication {
         FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
 
         job.setInputFormatClass(TextInputFormat.class);
-        job.setOutputFormatClass(TextOutputFormat.class);
+        job.setOutputValueClass(TextOutputFormat.class);
 
         System.exit(job.waitForCompletion(true) ? 0 : 1);
 
